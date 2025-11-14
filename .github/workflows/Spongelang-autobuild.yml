@@ -1,4 +1,4 @@
-name: "🧽 SpongeLang MultiLang AutoBuild (Zig for Windows Enabled)"
+name: "🧽 SpongeLang MultiLang AutoBuild — Final Stable"
 
 on:
   push:
@@ -29,12 +29,12 @@ jobs:
         run: mkdir -p dist
 
       # =========================================================
-      # 1) SpongeLang → Ruby/Rust/Scala/Zig/CPP 변환
+      # 1) SpongeLang → 5개 언어 변환
       # =========================================================
       - name: Generate SpongeLang Transpiled Files
         shell: bash
         run: |
-          echo "Generating SpongeLang multi-language outputs..."
+          echo "[SpongeLang] Generating multi-language outputs..."
 
           # Ruby
           printf '%s\n' \
@@ -76,23 +76,28 @@ jobs:
           '}' > dist/demo.cpp
 
       # =========================================================
-      # 2) OS별 Zig 설치
+      # 2) Zig 설치 (OS 별)
       # =========================================================
 
-      # Ubuntu
+      # Ubuntu → tarball 방식 (절대 실패 없음)
       - name: Install Zig (Ubuntu)
         if: runner.os == 'Linux'
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y zig
+          ZIG_VERSION=0.13.0
+          wget https://ziglang.org/download/$ZIG_VERSION/zig-linux-x86_64-$ZIG_VERSION.tar.xz
+          tar -xf zig-linux-x86_64-$ZIG_VERSION.tar.xz
+          echo "$PWD/zig-linux-x86_64-$ZIG_VERSION" >> $GITHUB_PATH
+          echo "[Ubuntu] Zig installed"
 
-      # macOS (brew 기본 지원)
+      # macOS → brew
       - name: Install Zig (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install zig
+          echo "[macOS] Zig installed"
 
-      # Windows (Chocolatey)
+      # Windows → choco
       - name: Install Zig (Windows)
         if: runner.os == 'Windows'
         shell: powershell
@@ -101,19 +106,20 @@ jobs:
           echo "Zig installed on Windows"
 
       # =========================================================
-      # 3) 언어별 컴파일 (전 OS 공통 Zig 지원)
+      # 3) 언어별 빌드
       # =========================================================
+
       - name: Build Rust
-        run: rustc dist/demo.rs -o dist/demo_rust || echo "Rust skipped"
+        run: rustc dist/demo.rs -o dist/demo_rust || echo "[Rust] skipped"
 
       - name: Build C++
-        run: g++ dist/demo.cpp -o dist/demo_cpp || echo "C++ skipped"
+        run: g++ dist/demo.cpp -o dist/demo_cpp || echo "[C++] skipped"
 
       - name: Build Zig
-        run: zig build-exe dist/demo.zig -femit-bin=dist/demo_zig || echo "Zig skipped"
+        run: zig build-exe dist/demo.zig -femit-bin=dist/demo_zig || echo "[Zig] skipped"
 
       - name: Build Scala
-        run: scalac dist/Main.scala || echo "Scala skipped"
+        run: scalac dist/Main.scala || echo "[Scala] skipped"
 
       # =========================================================
       # 4) ProofLedger
@@ -126,15 +132,18 @@ jobs:
           echo "Commit: $GITHUB_SHA" >> dist/proofledger.txt
           echo "Generated: $(date)" >> dist/proofledger.txt
 
+      # =========================================================
+      # 5) Artifact Upload
+      # =========================================================
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: spongelang-${{ matrix.os }}
           path: dist/
 
-  # =============================================================
-  # 5) Release
-  # =============================================================
+  # ===========================================================
+  # Release job — Ubuntu only
+  # ===========================================================
   release:
     runs-on: ubuntu-latest
     needs: build-multilang
