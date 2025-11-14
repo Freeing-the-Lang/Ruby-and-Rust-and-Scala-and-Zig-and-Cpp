@@ -1,4 +1,4 @@
-name: "🧽 SpongeLang MultiLang AutoBuild — Final Stable"
+name: "🧽 SpongeLang MultiLang AutoBuild — Final Stable v2"
 
 on:
   push:
@@ -22,15 +22,18 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
+      # ---------------------------------------------------------
+      # Base
+      # ---------------------------------------------------------
       - name: Checkout Repo
         uses: actions/checkout@v4
 
       - name: Create dist folder
         run: mkdir -p dist
 
-      # =========================================================
-      # 1) SpongeLang → 5개 언어 변환
-      # =========================================================
+      # ---------------------------------------------------------
+      # 1) SpongeLang → MultiLang Source Generation
+      # ---------------------------------------------------------
       - name: Generate SpongeLang Transpiled Files
         shell: bash
         run: |
@@ -75,11 +78,11 @@ jobs:
           '    return 0;' \
           '}' > dist/demo.cpp
 
-      # =========================================================
-      # 2) Zig 설치 (OS 별)
-      # =========================================================
+      # ---------------------------------------------------------
+      # 2) Zig Installation (Safe per OS)
+      # ---------------------------------------------------------
 
-      # Ubuntu → tarball 방식 (절대 실패 없음)
+      # Ubuntu → Tarball (safe)
       - name: Install Zig (Ubuntu)
         if: runner.os == 'Linux'
         shell: bash
@@ -90,40 +93,49 @@ jobs:
           echo "$PWD/zig-linux-x86_64-$ZIG_VERSION" >> $GITHUB_PATH
           echo "[Ubuntu] Zig installed"
 
-      # macOS → brew
+      # macOS → Homebrew
       - name: Install Zig (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install zig
           echo "[macOS] Zig installed"
 
-      # Windows → choco
+      # Windows → Chocolatey
       - name: Install Zig (Windows)
         if: runner.os == 'Windows'
         shell: powershell
         run: |
           choco install zig -y
-          echo "Zig installed on Windows"
+          echo "[Windows] Zig installed"
 
-      # =========================================================
-      # 3) 언어별 빌드
-      # =========================================================
+      # ---------------------------------------------------------
+      # 3) Language Build Section
+      # ---------------------------------------------------------
 
+      # Rust
       - name: Build Rust
         run: rustc dist/demo.rs -o dist/demo_rust || echo "[Rust] skipped"
 
+      # C++
       - name: Build C++
         run: g++ dist/demo.cpp -o dist/demo_cpp || echo "[C++] skipped"
 
+      # Zig
       - name: Build Zig
         run: zig build-exe dist/demo.zig -femit-bin=dist/demo_zig || echo "[Zig] skipped"
 
-      - name: Build Scala
+      # Scala (skip on Windows)
+      - name: Build Scala (non-Windows)
+        if: runner.os != 'Windows'
         run: scalac dist/Main.scala || echo "[Scala] skipped"
 
-      # =========================================================
+      - name: Skip Scala on Windows
+        if: runner.os == 'Windows'
+        run: echo "[Scala] skipped on Windows"
+
+      # ---------------------------------------------------------
       # 4) ProofLedger
-      # =========================================================
+      # ---------------------------------------------------------
       - name: Generate ProofLedger
         shell: bash
         run: |
@@ -132,18 +144,18 @@ jobs:
           echo "Commit: $GITHUB_SHA" >> dist/proofledger.txt
           echo "Generated: $(date)" >> dist/proofledger.txt
 
-      # =========================================================
-      # 5) Artifact Upload
-      # =========================================================
+      # ---------------------------------------------------------
+      # 5) Upload Build Artifacts
+      # ---------------------------------------------------------
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: spongelang-${{ matrix.os }}
           path: dist/
 
-  # ===========================================================
-  # Release job — Ubuntu only
-  # ===========================================================
+  # -----------------------------------------------------------
+  # Release Job (Ubuntu only)
+  # -----------------------------------------------------------
   release:
     runs-on: ubuntu-latest
     needs: build-multilang
@@ -151,13 +163,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download All Artifacts
+      - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           merge-multiple: true
           path: release-dist
 
-      - name: Zip release
+      - name: Zip Release
         run: |
           cd release-dist
           zip -r spongelang-release.zip .
