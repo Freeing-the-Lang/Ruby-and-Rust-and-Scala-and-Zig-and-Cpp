@@ -1,4 +1,4 @@
-name: "🧽 SpongeLang — Ruby/Rust/Scala/Zig/Cpp Auto Build + 3OS Release"
+name: "🧽 SpongeLang MultiLang AutoBuild"
 
 on:
   push:
@@ -28,106 +28,92 @@ jobs:
       - name: Create dist folder
         run: mkdir -p dist
 
-      ##################################################################
-      # 1) SpongeLang 원본을 다섯 언어로 자동 변환하는 부분
-      ##################################################################
+      # ---------------------------------------------------------
+      # 1) SpongeLang → 5개 언어 파일 생성 (Ruby/Rust/Scala/Zig/Cpp)
+      # ---------------------------------------------------------
       - name: Generate SpongeLang Transpiled Files
         shell: bash
         run: |
-          echo "[SpongeLang] Generating Ruby/Rust/Scala/Zig/Cpp..."
+          echo "Generating SpongeLang multi-language output..."
 
-          cat << 'EOF' > dist/demo.rb
-msg = "Hello from SpongeLang Fusion!"
-puts msg
-EOF
+          printf '%s\n' 'msg = "Hello from SpongeLang Fusion!"' 'puts msg' > dist/demo.rb
 
-          cat << 'EOF' > dist/demo.rs
-fn main() {
-    let msg = "Hello from SpongeLang Fusion!";
-    println!("{}", msg);
-}
-EOF
+          printf '%s\n' \
+          'fn main() {' \
+          '    let msg = "Hello from SpongeLang Fusion!";' \
+          '    println!("{}", msg);' \
+          '}' > dist/demo.rs
 
-          cat << 'EOF' > dist/Main.scala
-object Main {
-  def main(args: Array[String]): Unit = {
-    val msg = "Hello from SpongeLang Fusion!"
-    println(msg)
-  }
-}
-EOF
+          printf '%s\n' \
+          'object Main {' \
+          '  def main(args: Array[String]): Unit = {' \
+          '    val msg = "Hello from SpongeLang Fusion!"' \
+          '    println(msg)' \
+          '  }' \
+          '}' > dist/Main.scala
 
-          cat << 'EOF' > dist/demo.zig
-const std = @import("std");
-pub fn main() !void {
-    const msg = "Hello from SpongeLang Fusion!";
-    try std.io.getStdOut().writer().print("{s}\n", .{msg});
-}
-EOF
+          printf '%s\n' \
+          'const std = @import("std");' \
+          'pub fn main() !void {' \
+          '    const msg = "Hello from SpongeLang Fusion!";' \
+          '    try std.io.getStdOut().writer().print("{s}\n", .{msg});' \
+          '}' > dist/demo.zig
 
-          cat << 'EOF' > dist/demo.cpp
-#include <iostream>
-using namespace std;
-int main() {
-    string msg = "Hello from SpongeLang Fusion!";
-    cout << msg << endl;
-    return 0;
-}
-EOF
+          printf '%s\n' \
+          '#include <iostream>' \
+          'using namespace std;' \
+          'int main() {' \
+          '    string msg = "Hello from SpongeLang Fusion!";' \
+          '    cout << msg << endl;' \
+          '    return 0;' \
+          '}' > dist/demo.cpp
 
-      ##################################################################
-      # 2) 언어별 컴파일 (각 언어 없어도 그냥 통과)
-      ##################################################################
-      - name: Install dependencies (Ubuntu only)
+      # ---------------------------------------------------------
+      # 2) 언어별 빌드 (없으면 에러 무시)
+      # ---------------------------------------------------------
+      - name: Install deps (Ubuntu only)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc g++ zig scala
 
       - name: Build Rust
-        run: |
-          rustc dist/demo.rs -o dist/demo_rust || echo "Rust compile skipped"
+        run: rustc dist/demo.rs -o dist/demo_rust || echo "Rust build skipped"
 
       - name: Build C++
-        run: |
-          g++ dist/demo.cpp -o dist/demo_cpp || echo "C++ compile skipped"
+        run: g++ dist/demo.cpp -o dist/demo_cpp || echo "C++ build skipped"
 
       - name: Build Zig
-        run: |
-          zig build-exe dist/demo.zig -femit-bin=dist/demo_zig || echo "Zig compile skipped"
+        run: zig build-exe dist/demo.zig -femit-bin=dist/demo_zig || echo "Zig build skipped"
 
       - name: Build Scala
-        run: |
-          scalac dist/Main.scala || echo "Scala compile skipped"
+        run: scalac dist/Main.scala || echo "Scala build skipped"
 
-      ##################################################################
-      # 3) ProofLedger 생성
-      ##################################################################
+      # ---------------------------------------------------------
+      # 3) ProofLedger
+      # ---------------------------------------------------------
       - name: Generate ProofLedger
         shell: bash
         run: |
           echo "SpongeLang Proof Ledger" > dist/proofledger.txt
           echo "OS: $RUNNER_OS" >> dist/proofledger.txt
           echo "Commit: $GITHUB_SHA" >> dist/proofledger.txt
-          echo "Date: $(date)" >> dist/proofledger.txt
-          echo "Languages: Ruby/Rust/Scala/Zig/C++" >> dist/proofledger.txt
+          echo "Generated: $(date)" >> dist/proofledger.txt
 
-      ##################################################################
-      # 4) Artifact 업로드
-      ##################################################################
-      - name: Upload Build Artifacts
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: spongelang-${{ matrix.os }}
           path: dist/
 
-  ######################################################################
-  # 5) Release 자동 생성 (Ubuntu 결과만 사용)
-  ######################################################################
+
+  # -------------------------------------------------------------
+  # Release job — Ubuntu 결과만 사용, ZIP 생성
+  # -------------------------------------------------------------
   release:
-    name: "Release — MultiLang"
     runs-on: ubuntu-latest
     needs: build-multilang
+
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -138,7 +124,7 @@ EOF
           merge-multiple: true
           path: release-dist
 
-      - name: Zip Release
+      - name: Zip release
         run: |
           cd release-dist
           zip -r spongelang-release.zip .
