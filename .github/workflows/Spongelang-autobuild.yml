@@ -1,4 +1,4 @@
-name: "🧽 SpongeLang MultiLang AutoBuild"
+name: "🧽 SpongeLang MultiLang AutoBuild (Zig for Windows Enabled)"
 
 on:
   push:
@@ -28,22 +28,27 @@ jobs:
       - name: Create dist folder
         run: mkdir -p dist
 
-      # ---------------------------------------------------------
-      # 1) SpongeLang → 5개 언어 파일 생성 (Ruby/Rust/Scala/Zig/Cpp)
-      # ---------------------------------------------------------
+      # =========================================================
+      # 1) SpongeLang → Ruby/Rust/Scala/Zig/CPP 변환
+      # =========================================================
       - name: Generate SpongeLang Transpiled Files
         shell: bash
         run: |
-          echo "Generating SpongeLang multi-language output..."
+          echo "Generating SpongeLang multi-language outputs..."
 
-          printf '%s\n' 'msg = "Hello from SpongeLang Fusion!"' 'puts msg' > dist/demo.rb
+          # Ruby
+          printf '%s\n' \
+          'msg = "Hello from SpongeLang Fusion!"' \
+          'puts msg' > dist/demo.rb
 
+          # Rust
           printf '%s\n' \
           'fn main() {' \
           '    let msg = "Hello from SpongeLang Fusion!";' \
           '    println!("{}", msg);' \
           '}' > dist/demo.rs
 
+          # Scala
           printf '%s\n' \
           'object Main {' \
           '  def main(args: Array[String]): Unit = {' \
@@ -52,6 +57,7 @@ jobs:
           '  }' \
           '}' > dist/Main.scala
 
+          # Zig
           printf '%s\n' \
           'const std = @import("std");' \
           'pub fn main() !void {' \
@@ -59,6 +65,7 @@ jobs:
           '    try std.io.getStdOut().writer().print("{s}\n", .{msg});' \
           '}' > dist/demo.zig
 
+          # C++
           printf '%s\n' \
           '#include <iostream>' \
           'using namespace std;' \
@@ -68,30 +75,49 @@ jobs:
           '    return 0;' \
           '}' > dist/demo.cpp
 
-      # ---------------------------------------------------------
-      # 2) 언어별 빌드 (없으면 에러 무시)
-      # ---------------------------------------------------------
-      - name: Install deps (Ubuntu only)
+      # =========================================================
+      # 2) OS별 Zig 설치
+      # =========================================================
+
+      # Ubuntu
+      - name: Install Zig (Ubuntu)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc g++ zig scala
+          sudo apt-get install -y zig
 
+      # macOS (brew 기본 지원)
+      - name: Install Zig (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install zig
+
+      # Windows (Chocolatey)
+      - name: Install Zig (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          choco install zig -y
+          echo "Zig installed on Windows"
+
+      # =========================================================
+      # 3) 언어별 컴파일 (전 OS 공통 Zig 지원)
+      # =========================================================
       - name: Build Rust
-        run: rustc dist/demo.rs -o dist/demo_rust || echo "Rust build skipped"
+        run: rustc dist/demo.rs -o dist/demo_rust || echo "Rust skipped"
 
       - name: Build C++
-        run: g++ dist/demo.cpp -o dist/demo_cpp || echo "C++ build skipped"
+        run: g++ dist/demo.cpp -o dist/demo_cpp || echo "C++ skipped"
 
       - name: Build Zig
-        run: zig build-exe dist/demo.zig -femit-bin=dist/demo_zig || echo "Zig build skipped"
+        run: zig build-exe dist/demo.zig -femit-bin=dist/demo_zig || echo "Zig skipped"
 
       - name: Build Scala
-        run: scalac dist/Main.scala || echo "Scala build skipped"
+        run: scalac dist/Main.scala || echo "Scala skipped"
 
-      # ---------------------------------------------------------
-      # 3) ProofLedger
-      # ---------------------------------------------------------
+      # =========================================================
+      # 4) ProofLedger
+      # =========================================================
       - name: Generate ProofLedger
         shell: bash
         run: |
@@ -106,17 +132,15 @@ jobs:
           name: spongelang-${{ matrix.os }}
           path: dist/
 
-
-  # -------------------------------------------------------------
-  # Release job — Ubuntu 결과만 사용, ZIP 생성
-  # -------------------------------------------------------------
+  # =============================================================
+  # 5) Release
+  # =============================================================
   release:
     runs-on: ubuntu-latest
     needs: build-multilang
 
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
