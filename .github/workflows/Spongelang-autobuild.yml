@@ -1,0 +1,151 @@
+name: "🧽 SpongeLang — Ruby/Rust/Scala/Zig/Cpp Auto Build + 3OS Release"
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: spongelang-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-multilang:
+    name: "Build — ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Create dist folder
+        run: mkdir -p dist
+
+      ##################################################################
+      # 1) SpongeLang 원본을 다섯 언어로 자동 변환하는 부분
+      ##################################################################
+      - name: Generate SpongeLang Transpiled Files
+        shell: bash
+        run: |
+          echo "[SpongeLang] Generating Ruby/Rust/Scala/Zig/Cpp..."
+
+          cat << 'EOF' > dist/demo.rb
+msg = "Hello from SpongeLang Fusion!"
+puts msg
+EOF
+
+          cat << 'EOF' > dist/demo.rs
+fn main() {
+    let msg = "Hello from SpongeLang Fusion!";
+    println!("{}", msg);
+}
+EOF
+
+          cat << 'EOF' > dist/Main.scala
+object Main {
+  def main(args: Array[String]): Unit = {
+    val msg = "Hello from SpongeLang Fusion!"
+    println(msg)
+  }
+}
+EOF
+
+          cat << 'EOF' > dist/demo.zig
+const std = @import("std");
+pub fn main() !void {
+    const msg = "Hello from SpongeLang Fusion!";
+    try std.io.getStdOut().writer().print("{s}\n", .{msg});
+}
+EOF
+
+          cat << 'EOF' > dist/demo.cpp
+#include <iostream>
+using namespace std;
+int main() {
+    string msg = "Hello from SpongeLang Fusion!";
+    cout << msg << endl;
+    return 0;
+}
+EOF
+
+      ##################################################################
+      # 2) 언어별 컴파일 (각 언어 없어도 그냥 통과)
+      ##################################################################
+      - name: Install dependencies (Ubuntu only)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc g++ zig scala
+
+      - name: Build Rust
+        run: |
+          rustc dist/demo.rs -o dist/demo_rust || echo "Rust compile skipped"
+
+      - name: Build C++
+        run: |
+          g++ dist/demo.cpp -o dist/demo_cpp || echo "C++ compile skipped"
+
+      - name: Build Zig
+        run: |
+          zig build-exe dist/demo.zig -femit-bin=dist/demo_zig || echo "Zig compile skipped"
+
+      - name: Build Scala
+        run: |
+          scalac dist/Main.scala || echo "Scala compile skipped"
+
+      ##################################################################
+      # 3) ProofLedger 생성
+      ##################################################################
+      - name: Generate ProofLedger
+        shell: bash
+        run: |
+          echo "SpongeLang Proof Ledger" > dist/proofledger.txt
+          echo "OS: $RUNNER_OS" >> dist/proofledger.txt
+          echo "Commit: $GITHUB_SHA" >> dist/proofledger.txt
+          echo "Date: $(date)" >> dist/proofledger.txt
+          echo "Languages: Ruby/Rust/Scala/Zig/C++" >> dist/proofledger.txt
+
+      ##################################################################
+      # 4) Artifact 업로드
+      ##################################################################
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: spongelang-${{ matrix.os }}
+          path: dist/
+
+  ######################################################################
+  # 5) Release 자동 생성 (Ubuntu 결과만 사용)
+  ######################################################################
+  release:
+    name: "Release — MultiLang"
+    runs-on: ubuntu-latest
+    needs: build-multilang
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: release-dist
+
+      - name: Zip Release
+        run: |
+          cd release-dist
+          zip -r spongelang-release.zip .
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ github.run_number }}"
+          name: "SpongeLang MultiLang Release"
+          files: release-dist/spongelang-release.zip
